@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"golang.org/x/crypto/sha3"
 )
 
 // Genesis hashes to enforce below configs on.
@@ -63,8 +64,8 @@ var (
 		IshikariPatch001Block: big.NewInt(11171299),
 		IshikariPatch002Block: big.NewInt(11171299),
 		POSA: &POSAConfig{
-			Period:                    3,
-			Epoch:                     100,
+			Period: 3,
+			Epoch:  100,
 			IshikariInitialValidators: []common.Address{
 				common.HexToAddress("0x1105c97ffbd985600e6dc8e06e477b99d0a9ff39"),
 				common.HexToAddress("0xeac6d9b96c73a637ba9d7a54dc4faece0300fcb3"),
@@ -82,7 +83,7 @@ var (
 				common.HexToAddress("0xad291383864e1999fc7a36120562f1bb59dfea99"),
 			}, // @cary @Junm TODO: Ishikari initial validators
 
-			IshikariInitialManagers:   []common.Address{
+			IshikariInitialManagers: []common.Address{
 				common.HexToAddress("0x65E958D3EA7e60F33098dc665B0C8B7Dc563FA72"),
 				common.HexToAddress("0x6586e16EB5574f79bA4Cfa46C3b37bAEAAC50f32"),
 				common.HexToAddress("0xCCbb95B446e7CFd23fb80374b92d1F6F33e073E2"),
@@ -98,7 +99,7 @@ var (
 				common.HexToAddress("0xb9D71eF2D3A31588EF9196e66d69EE20B7302af8"),
 				common.HexToAddress("0x68A6a68d03D405af7E4676e5D92AD4BD7d1d004a"),
 			},
-			IshikariAdminMultiSig:     common.HexToAddress("0xD4139cc315164d4dcC696a18902F2e6b7B5D3de8"),
+			IshikariAdminMultiSig: common.HexToAddress("0xD4139cc315164d4dcC696a18902F2e6b7B5D3de8"),
 		},
 	}
 
@@ -154,16 +155,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
+	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -194,6 +195,18 @@ func (c *TrustedCheckpoint) Hash() common.Hash {
 	copy(buf[8+common.HashLength:], c.CHTRoot.Bytes())
 	copy(buf[8+2*common.HashLength:], c.BloomRoot.Bytes())
 	return crypto.Keccak256Hash(buf)
+	var sectionIndex [8]byte
+	binary.BigEndian.PutUint64(sectionIndex[:], c.SectionIndex)
+
+	w := sha3.NewLegacyKeccak256()
+	w.Write(sectionIndex[:])
+	w.Write(c.SectionHead[:])
+	w.Write(c.CHTRoot[:])
+	w.Write(c.BloomRoot[:])
+
+	var h common.Hash
+	w.Sum(h[:0])
+	return h
 }
 
 // Empty returns an indicator whether the checkpoint is regarded as empty.
@@ -253,9 +266,9 @@ type ChainConfig struct {
 	// A patch for Ishikari hardfork
 	// The punishment parameters for mainnet is determined in this hardfork
 	IshikariPatch002Block *big.Int `json:"ishikariPatch002Block,omitempty"`
-
-	YoloV3Block *big.Int `json:"yoloV3Block,omitempty"` // YOLO v3: Gas repricings TODO @holiman add EIP references
-	EWASMBlock  *big.Int `json:"ewasmBlock,omitempty"`  // EWASM switch block (nil = no fork, 0 = already activated)
+	YoloV3Block           *big.Int `json:"yoloV3Block,omitempty"`   // YOLO v3: Gas repricings TODO @holiman add EIP references
+	EWASMBlock            *big.Int `json:"ewasmBlock,omitempty"`    // EWASM switch block (nil = no fork, 0 = already activated)
+	CatalystBlock         *big.Int `json:"catalystBlock,omitempty"` // Catalyst switch block (nil = no fork, 0 = already on catalyst)
 
 	//
 
@@ -427,6 +440,11 @@ func (c *ChainConfig) IsIstanbul(num *big.Int) bool {
 // IsBerlin returns whether num is either equal to the Berlin fork block or greater.
 func (c *ChainConfig) IsBerlin(num *big.Int) bool {
 	return isForked(c.BerlinBlock, num) || isForked(c.YoloV3Block, num)
+}
+
+// IsCatalyst returns whether num is either equal to the Merge fork block or greater.
+func (c *ChainConfig) IsCatalyst(num *big.Int) bool {
+	return isForked(c.CatalystBlock, num)
 }
 
 // IsEWASM returns whether num represents a block number after the EWASM fork
@@ -659,6 +677,7 @@ type Rules struct {
 	IsBerlin                                                bool
 	IsIshikari                                              bool
 	IsCVE_2021_39137BlockPassed                             bool
+	IsCatalyst                                              bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -680,5 +699,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsBerlin:                    c.IsBerlin(num),
 		IsIshikari:                  c.IsKCCIshikari(num),
 		IsCVE_2021_39137BlockPassed: c.CVE_2021_39137Block == nil || c.CVE_2021_39137Block.Cmp(num) < 0,
+		IsCatalyst:                  c.IsCatalyst(num),
 	}
 }
