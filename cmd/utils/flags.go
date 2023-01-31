@@ -172,7 +172,7 @@ var (
 		Name:  "exitwhensynced",
 		Usage: "Exits after block synchronisation completes",
 	}
-	IterativeOutputFlag = cli.BoolFlag{
+	IterativeOutputFlag = cli.BoolTFlag{
 		Name:  "iterative",
 		Usage: "Print streaming JSON iteratively, delimited by newlines",
 	}
@@ -187,6 +187,16 @@ var (
 	ExcludeCodeFlag = cli.BoolFlag{
 		Name:  "nocode",
 		Usage: "Exclude contract code (save db lookups)",
+	}
+	StartKeyFlag = cli.StringFlag{
+		Name:  "start",
+		Usage: "Start position. Either a hash or address",
+		Value: "0x0000000000000000000000000000000000000000000000000000000000000000",
+	}
+	DumpLimitFlag = cli.Uint64Flag{
+		Name:  "limit",
+		Usage: "Max number of elements (0 = no limit)",
+		Value: 0,
 	}
 	defaultSyncMode = ethconfig.Defaults.SyncMode
 	SyncModeFlag    = TextMarshalerFlag{
@@ -221,9 +231,9 @@ var (
 		Usage: "Megabytes of memory allocated to bloom-filter for pruning",
 		Value: 2048,
 	}
-	OverrideBerlinFlag = cli.Uint64Flag{
-		Name:  "override.berlin",
-		Usage: "Manually specify Berlin fork-block, overriding the bundled setting",
+	OverrideLondonFlag = cli.Uint64Flag{
+		Name:  "override.london",
+		Usage: "Manually specify London fork-block, overriding the bundled setting",
 	}
 	// Light server and client settings
 	LightServeFlag = cli.IntFlag{
@@ -653,10 +663,10 @@ var (
 	}
 
 	// ATM the url is left to the user and deployment to
-	JSpathFlag = cli.StringFlag{
+	JSpathFlag = DirectoryFlag{
 		Name:  "jspath",
 		Usage: "JavaScript root path for `loadScript`",
-		Value: ".",
+		Value: DirectoryString("."),
 	}
 
 	// Gas price oracle settings
@@ -679,6 +689,11 @@ var (
 		Name:  "gpo.minprice",
 		Usage: "Minimum gas price will be recommended by gpo",
 		Value: ethconfig.Defaults.GPO.MinPrice.Int64(),
+	}
+	GpoIgnoreGasPriceFlag = cli.Int64Flag{
+		Name:  "gpo.ignoreprice",
+		Usage: "Gas price below which gpo will ignore transactions",
+		Value: ethconfig.Defaults.GPO.IgnorePrice.Int64(),
 	}
 
 	// Metrics flags
@@ -1195,6 +1210,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(KeyStoreDirFlag.Name) {
 		cfg.KeyStoreDir = ctx.GlobalString(KeyStoreDirFlag.Name)
 	}
+	if ctx.GlobalIsSet(DeveloperFlag.Name) {
+		cfg.UseLightweightKDF = true
+	}
 	if ctx.GlobalIsSet(LightKDFFlag.Name) {
 		cfg.UseLightweightKDF = ctx.GlobalBool(LightKDFFlag.Name)
 	}
@@ -1258,6 +1276,9 @@ func setGPO(ctx *cli.Context, cfg *gasprice.Config, light bool) {
 	}
 	if ctx.GlobalIsSet(GpoMinGasPriceFlag.Name) {
 		cfg.MinPrice = big.NewInt(ctx.GlobalInt64(GpoMinGasPriceFlag.Name))
+	}
+	if ctx.GlobalIsSet(GpoIgnoreGasPriceFlag.Name) {
+		cfg.IgnorePrice = big.NewInt(ctx.GlobalInt64(GpoIgnoreGasPriceFlag.Name))
 	}
 }
 
@@ -1574,6 +1595,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
 		}
+		cfg.SyncMode = downloader.FullSync
 		// Create new developer account or reuse existing one
 		var (
 			developer  accounts.Account

@@ -155,16 +155,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
+	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -270,7 +270,9 @@ type ChainConfig struct {
 	EWASMBlock            *big.Int `json:"ewasmBlock,omitempty"`    // EWASM switch block (nil = no fork, 0 = already activated)
 	CatalystBlock         *big.Int `json:"catalystBlock,omitempty"` // Catalyst switch block (nil = no fork, 0 = already on catalyst)
 
-	//
+	// @KCC-TODO We will never use the London Block
+	// Move it to the end
+	LondonBlock *big.Int `json:"londonBlock,omitempty"`
 
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
@@ -439,7 +441,11 @@ func (c *ChainConfig) IsIstanbul(num *big.Int) bool {
 
 // IsBerlin returns whether num is either equal to the Berlin fork block or greater.
 func (c *ChainConfig) IsBerlin(num *big.Int) bool {
-	return isForked(c.BerlinBlock, num) || isForked(c.YoloV3Block, num)
+	return isForked(c.BerlinBlock, num)
+}
+
+func (c *ChainConfig) IsLondon(num *big.Int) bool {
+	return isForked(c.LondonBlock, num)
 }
 
 // IsCatalyst returns whether num is either equal to the Merge fork block or greater.
@@ -677,6 +683,7 @@ type Rules struct {
 	IsBerlin                                                bool
 	IsIshikari                                              bool
 	IsCVE_2021_39137BlockPassed                             bool
+	IsLondon                                                bool
 	IsCatalyst                                              bool
 }
 
@@ -699,6 +706,7 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsBerlin:                    c.IsBerlin(num),
 		IsIshikari:                  c.IsKCCIshikari(num),
 		IsCVE_2021_39137BlockPassed: c.CVE_2021_39137Block == nil || c.CVE_2021_39137Block.Cmp(num) < 0,
+		IsLondon:                    c.IsLondon(num),
 		IsCatalyst:                  c.IsCatalyst(num),
 	}
 }

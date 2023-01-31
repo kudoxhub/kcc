@@ -30,6 +30,7 @@ type Config struct {
 	Debug                   bool   // Enables debugging
 	Tracer                  Tracer // Opcode logger
 	NoRecursion             bool   // Disables call, callcode, delegate call and create
+	NoBaseFee               bool   // Forces the EIP-1559 baseFee to 0 (needed for 0 price calls)
 	EnablePreimageRecording bool   // Enables recording of SHA3/keccak preimages
 
 	JumpTable [256]*operation // EVM instruction table, automatically populated if unset
@@ -98,6 +99,10 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 	if cfg.JumpTable[STOP] == nil {
 		var jt JumpTable
 		switch {
+		case evm.chainRules.IsLondon:
+			// @KCC-TODO: We will never use the london hardfork, but include EIP-1559 in another hardfork.
+			// This is added to make the code compatible with the ethereum codebase
+			jt = londonInstructionSet
 		case evm.chainRules.IsCVE_2021_39137BlockPassed:
 			// a "fake" hardfork follows berlin hardfork
 			jt = berlinInstructionSet
