@@ -266,13 +266,18 @@ type ChainConfig struct {
 	// A patch for Ishikari hardfork
 	// The punishment parameters for mainnet is determined in this hardfork
 	IshikariPatch002Block *big.Int `json:"ishikariPatch002Block,omitempty"`
-	YoloV3Block           *big.Int `json:"yoloV3Block,omitempty"`   // YOLO v3: Gas repricings TODO @holiman add EIP references
-	EWASMBlock            *big.Int `json:"ewasmBlock,omitempty"`    // EWASM switch block (nil = no fork, 0 = already activated)
-	CatalystBlock         *big.Int `json:"catalystBlock,omitempty"` // Catalyst switch block (nil = no fork, 0 = already on catalyst)
+	YoloV3Block           *big.Int `json:"yoloV3Block,omitempty"` // YOLO v3: Gas repricings TODO @holiman add EIP references
+	EWASMBlock            *big.Int `json:"ewasmBlock,omitempty"`  // EWASM switch block (nil = no fork, 0 = already activated)
 
 	// @KCC-TODO We will never use the London Block
 	// Move it to the end
 	LondonBlock *big.Int `json:"londonBlock,omitempty"`
+
+	// @KCC-TODO: We will not enable TTD
+	// The hardfork should not reflect on the forkid.
+	// TerminalTotalDifficulty is the amount of total difficulty reached by
+	// the network that triggers the consensus upgrade.
+	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`
 
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
@@ -444,13 +449,17 @@ func (c *ChainConfig) IsBerlin(num *big.Int) bool {
 	return isForked(c.BerlinBlock, num)
 }
 
+// IsLondon returns whether num is either equal to the London fork block or greater.
 func (c *ChainConfig) IsLondon(num *big.Int) bool {
 	return isForked(c.LondonBlock, num)
 }
 
-// IsCatalyst returns whether num is either equal to the Merge fork block or greater.
-func (c *ChainConfig) IsCatalyst(num *big.Int) bool {
-	return isForked(c.CatalystBlock, num)
+// IsTerminalPoWBlock returns whether the given block is the last block of PoW stage.
+func (c *ChainConfig) IsTerminalPoWBlock(parentTotalDiff *big.Int, totalDiff *big.Int) bool {
+	if c.TerminalTotalDifficulty == nil {
+		return false
+	}
+	return parentTotalDiff.Cmp(c.TerminalTotalDifficulty) < 0 && totalDiff.Cmp(c.TerminalTotalDifficulty) >= 0
 }
 
 // IsEWASM returns whether num represents a block number after the EWASM fork
@@ -684,7 +693,6 @@ type Rules struct {
 	IsIshikari                                              bool
 	IsCVE_2021_39137BlockPassed                             bool
 	IsLondon                                                bool
-	IsCatalyst                                              bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -707,6 +715,5 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsIshikari:                  c.IsKCCIshikari(num),
 		IsCVE_2021_39137BlockPassed: c.CVE_2021_39137Block == nil || c.CVE_2021_39137Block.Cmp(num) < 0,
 		IsLondon:                    c.IsLondon(num),
-		IsCatalyst:                  c.IsCatalyst(num),
 	}
 }
