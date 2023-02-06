@@ -66,6 +66,7 @@ It expects the genesis file as argument.`,
 		Flags: []cli.Flag{
 			utils.MainnetFlag,
 			utils.TestnetFlag,
+			utils.SepoliaFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -138,7 +139,9 @@ be gzipped.`,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
-	The import-preimages command imports hash preimages from an RLP encoded stream.`,
+The import-preimages command imports hash preimages from an RLP encoded stream.
+It's deprecated, please use "geth db import" instead.
+`,
 	}
 	exportPreimagesCommand = cli.Command{
 		Action:    utils.MigrateFlags(exportPreimages),
@@ -152,7 +155,9 @@ be gzipped.`,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
-The export-preimages command export hash preimages to an RLP encoded stream`,
+The export-preimages command exports hash preimages to an RLP encoded stream.
+It's deprecated, please use "geth db export" instead.
+`,
 	}
 	dumpCommand = cli.Command{
 		Action:    utils.MigrateFlags(dump),
@@ -366,7 +371,6 @@ func exportPreimages(ctx *cli.Context) error {
 	if len(ctx.Args()) < 1 {
 		utils.Fatalf("This command requires an argument.")
 	}
-
 	stack, _ := makeConfigNode(ctx)
 	defer stack.Close()
 
