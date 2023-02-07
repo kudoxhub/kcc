@@ -43,23 +43,25 @@ import (
 
 // FullNodeGPO contains default gasprice oracle settings for full node.
 var FullNodeGPO = gasprice.Config{
-	Blocks:     20,
-	Percentile: 60,
-	MaxPrice:   gasprice.DefaultMaxPrice,
+	Blocks:      20,
+	Percentile:  60,
+	MaxPrice:    gasprice.DefaultMaxPrice,
 	MinPrice:   gasprice.DefaultMinPrice,
+	IgnorePrice: gasprice.DefaultIgnorePrice,
 }
 
 // LightClientGPO contains default gasprice oracle settings for light client.
 var LightClientGPO = gasprice.Config{
-	Blocks:     2,
-	Percentile: 60,
-	MaxPrice:   gasprice.DefaultMaxPrice,
+	Blocks:      2,
+	Percentile:  60,
+	MaxPrice:    gasprice.DefaultMaxPrice,
 	MinPrice:   gasprice.DefaultMinPrice,
+	IgnorePrice: gasprice.DefaultIgnorePrice,
 }
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	SyncMode: downloader.FastSync,
+	SyncMode: downloader.SnapSync,
 	Ethash: ethash.Config{
 		CacheDir:         "ethash",
 		CachesInMem:      2,
@@ -87,7 +89,7 @@ var Defaults = Config{
 		Recommit: 3 * time.Second,
 	},
 	TxPool:      core.DefaultTxPoolConfig,
-	RPCGasCap:   25000000,
+	RPCGasCap:   50000000,
 	GPO:         FullNodeGPO,
 	RPCTxFeeCap: 1, // 1 ether
 }
@@ -204,7 +206,7 @@ type Config struct {
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
 
 	// Berlin block override (TODO: remove after the fork)
-	OverrideBerlin *big.Int `toml:",omitempty"`
+	OverrideLondon *big.Int `toml:",omitempty"`
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
@@ -215,7 +217,7 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 	}
 	// If proof-of-stake-authority is requested, set it up
 	if chainConfig.POSA != nil {
-		// @Junm @Cary TODO：validate posa config
+		// Validate the configurations for Posa
 		if err := chainConfig.POSA.Validate(chainConfig); err != nil {
 			log.Crit("POSA config in chainConfig is invalid", "reason", err)
 		}
