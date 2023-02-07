@@ -315,7 +315,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	//@KCC-TODO: We will enable EIP-3529 in a future hardfork
-	if st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber) {
+	if !st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber) {
 		// Before EIP-3529: refunds were capped to gasUsed / 2
 		st.refundGas(params.RefundQuotient)
 	} else {
