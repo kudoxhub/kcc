@@ -69,6 +69,8 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 	// If jump table was not initialised we set the default one.
 	if cfg.JumpTable == nil {
 		switch {
+		case evm.chainRules.IsMerge:
+			cfg.JumpTable = &mergeInstructionSet
 		case evm.chainRules.IsLondon:
 			// @KCC-TODO: We will never use the london hardfork, but include EIP-1559 in another hardfork.
 			// This is added to make the code compatible with the ethereum codebase
