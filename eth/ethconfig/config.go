@@ -48,7 +48,7 @@ var FullNodeGPO = gasprice.Config{
 	MaxHeaderHistory: 1024,
 	MaxBlockHistory:  1024,
 	MaxPrice:         gasprice.DefaultMaxPrice,
-	MinPrice:   gasprice.DefaultMinPrice,
+	MinPrice:         gasprice.DefaultMinPrice,
 	IgnorePrice:      gasprice.DefaultIgnorePrice,
 }
 
@@ -59,7 +59,7 @@ var LightClientGPO = gasprice.Config{
 	MaxHeaderHistory: 300,
 	MaxBlockHistory:  5,
 	MaxPrice:         gasprice.DefaultMaxPrice,
-	MinPrice:   gasprice.DefaultMinPrice,
+	MinPrice:         gasprice.DefaultMinPrice,
 	IgnorePrice:      gasprice.DefaultIgnorePrice,
 }
 
@@ -208,6 +208,9 @@ type Config struct {
 
 	// Arrow Glacier block override (TODO: remove after the fork)
 	OverrideArrowGlacier *big.Int `toml:",omitempty"`
+
+	// OverrideTerminalTotalDifficulty (TODO: remove after the fork)
+	OverrideTerminalTotalDifficulty *big.Int `toml:",omitempty"`
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
@@ -246,5 +249,7 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 		NotifyFull:       config.NotifyFull,
 	}, notify, noverify)
 	engine.SetThreads(-1) // Disable CPU mining
+	// KCC-TODO: In the go-ethereum codebase, the returned engine is a wrapped engine: beacon.New(engine)
+	// We still return the unwrapped engine here because there will not be anything like "the merge" for KCC
 	return engine
 }
