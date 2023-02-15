@@ -1,8 +1,14 @@
 
-name: hive
-run-name: hive simulations
+name: hive-trouble-shooting
+run-name: hive simulations (manually)
 on: 
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      hive_extra_flags:
+        description: Extra flags passed to hive 
+        required: false
+        default:  ""
+        type: string 
 env:
   HIVE_REPO: kcc-community/hive
 jobs:
