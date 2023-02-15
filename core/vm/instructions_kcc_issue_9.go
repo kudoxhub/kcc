@@ -54,6 +54,7 @@ func opVulnerableStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *Scop
 	}
 	scope.Contract.Gas += returnGas
 
+	interpreter.returnData = common.CopyBytes(ret)
 	return ret, nil
 }
 
