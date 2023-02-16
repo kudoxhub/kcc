@@ -165,7 +165,7 @@ var (
 	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
-	TestRules       = TestChainConfig.Rules(new(big.Int))
+	TestRules       = TestChainConfig.Rules(new(big.Int), false)
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -703,10 +703,11 @@ type Rules struct {
 	IsIshikari                                              bool
 	IsCVE_2021_39137BlockPassed                             bool
 	IsLondon                                                bool
+	IsMerge                                                 bool
 }
 
 // Rules ensures c's ChainID is not nil.
-func (c *ChainConfig) Rules(num *big.Int) Rules {
+func (c *ChainConfig) Rules(num *big.Int, isMerge bool) Rules {
 	chainID := c.ChainID
 	if chainID == nil {
 		chainID = new(big.Int)
@@ -725,5 +726,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsIshikari:                  c.IsKCCIshikari(num),
 		IsCVE_2021_39137BlockPassed: c.CVE_2021_39137Block == nil || c.CVE_2021_39137Block.Cmp(num) < 0,
 		IsLondon:                    c.IsLondon(num),
+		IsMerge:                     isMerge,
 	}
 }
