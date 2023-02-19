@@ -2,13 +2,6 @@
 name: hive
 run-name: hive simulations
 on: 
-  workflow_dispatch:
-    inputs:
-      hive_extra_flags:
-        description: Extra flags passed to hive 
-        required: false
-        default:  ""
-        type: string 
   pull_request:
 env:
   HIVE_REPO: kcc-community/hive

@@ -21,7 +21,6 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/big"
 	"os"
@@ -38,7 +37,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -51,6 +49,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb/remotedb"
 	"github.com/ethereum/go-ethereum/ethstats"
 	"github.com/ethereum/go-ethereum/graphql"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -114,6 +113,10 @@ var (
 		Name:  "datadir",
 		Usage: "Data directory for the databases and keystore",
 		Value: DirectoryString(node.DefaultDataDir()),
+	}
+	RemoteDBFlag = cli.StringFlag{
+		Name:  "remotedb",
+		Usage: "URL for remote database",
 	}
 	AncientFlag = DirectoryFlag{
 		Name:  "datadir.ancient",
@@ -233,24 +236,24 @@ var (
 		Name:  "lightkdf",
 		Usage: "Reduce key-derivation RAM & CPU usage at some expense of KDF strength",
 	}
-	EthPeerRequiredBlocksFlag = cli.StringFlag{
+	EthRequiredBlocksFlag = cli.StringFlag{
 		Name:  "eth.requiredblocks",
 		Usage: "Comma separated block number-to-hash mappings to require for peering (<number>=<hash>)",
 	}
 	LegacyWhitelistFlag = cli.StringFlag{
 		Name:  "whitelist",
-		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>) (deprecated in favor of --peer.requiredblocks)",
+		Usage: "Comma separated block number-to-hash mappings to enforce (<number>=<hash>) (deprecated in favor of --eth.requiredblocks)",
 	}
 	BloomFilterSizeFlag = cli.Uint64Flag{
 		Name:  "bloomfilter.size",
 		Usage: "Megabytes of memory allocated to bloom-filter for pruning",
 		Value: 2048,
 	}
-	OverrideArrowGlacierFlag = cli.Uint64Flag{
-		Name:  "override.arrowglacier",
-		Usage: "Manually specify Arrow Glacier fork-block, overriding the bundled setting",
+	OverrideGrayGlacierFlag = cli.Uint64Flag{
+		Name:  "override.grayglacier",
+		Usage: "Manually specify Gray Glacier fork-block, overriding the bundled setting",
 	}
-	OverrideTerminalTotalDifficulty = cli.Uint64Flag{
+	OverrideTerminalTotalDifficulty = BigFlag{
 		Name:  "override.terminaltotaldifficulty",
 		Usage: "Manually specify TerminalTotalDifficulty, overriding the bundled setting",
 	}
@@ -555,6 +558,10 @@ var (
 		Name:  "nocompaction",
 		Usage: "Disables db compaction after import",
 	}
+	IgnoreLegacyReceiptsFlag = cli.BoolFlag{
+		Name:  "ignore-legacy-receipts",
+		Usage: "Geth will start up even if there are legacy receipts in freezer",
+	}
 	// RPC settings
 	IPCDisabledFlag = cli.BoolFlag{
 		Name:  "ipcdisable",
@@ -820,6 +827,33 @@ var (
 		Value: metrics.DefaultConfig.InfluxDBOrganization,
 	}
 )
+
+var (
+	// TestnetFlags is the flag group of all built-in supported testnets.
+	TestnetFlags = []cli.Flag{
+		TestnetFlag,
+	}
+	// NetworkFlags is the flag group of all built-in supported networks.
+	NetworkFlags = append([]cli.Flag{
+		MainnetFlag,
+	}, TestnetFlags...)
+
+	// DatabasePathFlags is the flag group of all database path flags.
+	DatabasePathFlags = []cli.Flag{
+		DataDirFlag,
+		AncientFlag,
+		RemoteDBFlag,
+	}
+)
+
+// GroupFlags combines the given flag slices together and returns the merged one.
+func GroupFlags(groups ...[]cli.Flag) []cli.Flag {
+	var ret []cli.Flag
+	for _, group := range groups {
+		ret = append(ret, group...)
+	}
+	return ret
+}
 
 // MakeDataDir retrieves the currently requested data directory, terminating
 // if none (or the empty string) is specified. If the node is starting a testnet,
@@ -1165,7 +1199,7 @@ func MakePasswordList(ctx *cli.Context) []string {
 	if path == "" {
 		return nil
 	}
-	text, err := ioutil.ReadFile(path)
+	text, err := os.ReadFile(path)
 	if err != nil {
 		Fatalf("Failed to read password file: %v", err)
 	}
@@ -1317,10 +1351,7 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = "" // unless explicitly requested, use memory databases
 	case ctx.GlobalBool(TestnetFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "testnet")
-	case ctx.GlobalBool(SepoliaFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "sepolia")
-	case ctx.GlobalBool(KilnFlag.Name) && cfg.DataDir == node.DefaultDataDir():
-		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "kiln")
+
 	}
 }
 
@@ -1442,33 +1473,31 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	}
 }
 
-func setPeerRequiredBlocks(ctx *cli.Context, cfg *ethconfig.Config) {
-	peerRequiredBlocks := ctx.GlobalString(EthPeerRequiredBlocksFlag.Name)
-
-	if peerRequiredBlocks == "" {
+func setRequiredBlocks(ctx *cli.Context, cfg *ethconfig.Config) {
+	requiredBlocks := ctx.GlobalString(EthRequiredBlocksFlag.Name)
+	if requiredBlocks == "" {
 		if ctx.GlobalIsSet(LegacyWhitelistFlag.Name) {
-			log.Warn("The flag --rpc is deprecated and will be removed, please use --peer.requiredblocks")
-			peerRequiredBlocks = ctx.GlobalString(LegacyWhitelistFlag.Name)
+			log.Warn("The flag --whitelist is deprecated and will be removed, please use --eth.requiredblocks")
+			requiredBlocks = ctx.GlobalString(LegacyWhitelistFlag.Name)
 		} else {
 			return
 		}
 	}
-
-	cfg.PeerRequiredBlocks = make(map[uint64]common.Hash)
-	for _, entry := range strings.Split(peerRequiredBlocks, ",") {
+	cfg.RequiredBlocks = make(map[uint64]common.Hash)
+	for _, entry := range strings.Split(requiredBlocks, ",") {
 		parts := strings.Split(entry, "=")
 		if len(parts) != 2 {
-			Fatalf("Invalid peer required block entry: %s", entry)
+			Fatalf("Invalid required block entry: %s", entry)
 		}
 		number, err := strconv.ParseUint(parts[0], 0, 64)
 		if err != nil {
-			Fatalf("Invalid peer required block number %s: %v", parts[0], err)
+			Fatalf("Invalid required block number %s: %v", parts[0], err)
 		}
 		var hash common.Hash
 		if err = hash.UnmarshalText([]byte(parts[1])); err != nil {
-			Fatalf("Invalid peer required block hash %s: %v", parts[1], err)
+			Fatalf("Invalid required block hash %s: %v", parts[1], err)
 		}
-		cfg.PeerRequiredBlocks[number] = hash
+		cfg.RequiredBlocks[number] = hash
 	}
 }
 
@@ -1535,7 +1564,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	setTxPool(ctx, &cfg.TxPool)
 	setEthash(ctx, cfg)
 	setMiner(ctx, &cfg.Miner)
-	setPeerRequiredBlocks(ctx, cfg)
+	setRequiredBlocks(ctx, cfg)
 	setLes(ctx, cfg)
 
 	// Cap the cache allowance and tune the garbage collector
@@ -1659,6 +1688,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 			cfg.NetworkId = 322
 		}
 		cfg.Genesis = core.DefaultTestnetGenesisBlock()
+		log.Warn("")
+		log.Warn("--------------------------------------------------------------------------------")
+		log.Warn("Please note, Rinkeby has been deprecated. It will still work for the time being,")
+		log.Warn("but there will be no further hard-forks shipped for it. Eventually the network")
+		log.Warn("will be permanently halted after the other networks transition through the merge")
+		log.Warn("and prove stable enough. For the most future proof testnet, choose Sepolia as")
+		log.Warn("your replacement environment (--sepolia instead of --rinkeby).")
+		log.Warn("--------------------------------------------------------------------------------")
+		log.Warn("")
+
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -1871,12 +1910,14 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node, readonly bool) ethdb.
 		err     error
 		chainDb ethdb.Database
 	)
-	if ctx.GlobalString(SyncModeFlag.Name) == "light" {
-		name := "lightchaindata"
-		chainDb, err = stack.OpenDatabase(name, cache, handles, "", readonly)
-	} else {
-		name := "chaindata"
-		chainDb, err = stack.OpenDatabaseWithFreezer(name, cache, handles, ctx.GlobalString(AncientFlag.Name), "", readonly)
+	switch {
+	case ctx.GlobalIsSet(RemoteDBFlag.Name):
+		log.Info("Using remote db", "url", ctx.GlobalString(RemoteDBFlag.Name))
+		chainDb, err = remotedb.New(ctx.GlobalString(RemoteDBFlag.Name))
+	case ctx.GlobalString(SyncModeFlag.Name) == "light":
+		chainDb, err = stack.OpenDatabase("lightchaindata", cache, handles, "", readonly)
+	default:
+		chainDb, err = stack.OpenDatabaseWithFreezer("chaindata", cache, handles, ctx.GlobalString(AncientFlag.Name), "", readonly)
 	}
 	if err != nil {
 		Fatalf("Could not open database: %v", err)
@@ -1909,24 +1950,13 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if err != nil {
 		Fatalf("%v", err)
 	}
+
 	var engine consensus.Engine
-	if config.Clique != nil {
-		engine = clique.New(config.Clique, chainDb)
-	} else {
-		engine = ethash.NewFaker()
-		if !ctx.GlobalBool(FakePoWFlag.Name) {
-			engine = ethash.New(ethash.Config{
-				CacheDir:         stack.ResolvePath(ethconfig.Defaults.Ethash.CacheDir),
-				CachesInMem:      ethconfig.Defaults.Ethash.CachesInMem,
-				CachesOnDisk:     ethconfig.Defaults.Ethash.CachesOnDisk,
-				CachesLockMmap:   ethconfig.Defaults.Ethash.CachesLockMmap,
-				DatasetDir:       stack.ResolvePath(ethconfig.Defaults.Ethash.DatasetDir),
-				DatasetsInMem:    ethconfig.Defaults.Ethash.DatasetsInMem,
-				DatasetsOnDisk:   ethconfig.Defaults.Ethash.DatasetsOnDisk,
-				DatasetsLockMmap: ethconfig.Defaults.Ethash.DatasetsLockMmap,
-			}, nil, false)
-		}
+	ethashConf := ethconfig.Defaults.Ethash
+	if ctx.GlobalBool(FakePoWFlag.Name) {
+		ethashConf.PowMode = ethash.ModeFake
 	}
+	engine = ethconfig.CreateConsensusEngine(stack, config, &ethashConf, nil, false, chainDb)
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}
