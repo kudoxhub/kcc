@@ -44,7 +44,7 @@ import (
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 
-	"gopkg.in/urfave/cli.v1"
+	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -119,6 +119,7 @@ var (
 		utils.CachePreimagesFlag,
 		utils.FDLimitFlag,
 		utils.ListenPortFlag,
+		utils.DiscoveryPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
 		utils.MiningEnabledFlag,
@@ -208,7 +209,7 @@ func init() {
 	app.Action = geth
 	app.HideVersion = true // we have a command to print the version
 	app.Copyright = "Copyright 2013-2022 The go-ethereum Authors"
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		// See chaincmd.go:
 		initCommand,
 		importCommand,
@@ -242,13 +243,16 @@ func init() {
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 
-	app.Flags = utils.GroupFlags(nodeFlags,
+	app.Flags = utils.GroupFlags(
+		nodeFlags,
 		rpcFlags,
 		consoleFlags,
 		debug.Flags,
-		metricsFlags)
+		metricsFlags,
+	)
 
 	app.Before = func(ctx *cli.Context) error {
+		flags.MigrateGlobalFlags(ctx)
 		return debug.Setup(ctx)
 	}
 	app.After = func(ctx *cli.Context) error {
@@ -270,16 +274,16 @@ func main() {
 func prepare(ctx *cli.Context) {
 	// If we're running a known preset, log it for convenience.
 	switch {
-	case ctx.GlobalIsSet(utils.TestnetFlag.Name):
+	case ctx.IsSet(utils.TestnetFlag.Name):
 		log.Info("Starting Geth on testnet...")
 
-	case ctx.GlobalIsSet(utils.SepoliaFlag.Name):
+	case ctx.IsSet(utils.SepoliaFlag.Name):
 		log.Info("Starting Geth on Sepolia testnet...")
 
-	case ctx.GlobalIsSet(utils.KilnFlag.Name):
+	case ctx.IsSet(utils.KilnFlag.Name):
 		log.Info("Starting Geth on Kiln testnet...")
 
-	case ctx.GlobalIsSet(utils.DeveloperFlag.Name):
+	case ctx.IsSet(utils.DeveloperFlag.Name):
 		log.Info("Starting Geth in ephemeral dev mode...")
 		log.Warn(`You are running Geth in --dev mode. Please note the following:
 
@@ -297,21 +301,21 @@ func prepare(ctx *cli.Context) {
      to 0, and discovery is disabled.
 `)
 
-	case !ctx.GlobalIsSet(utils.NetworkIdFlag.Name):
+	case !ctx.IsSet(utils.NetworkIdFlag.Name):
 		log.Info("Starting Geth on Ethereum mainnet...")
 	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
-	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" && !ctx.GlobalIsSet(utils.CacheFlag.Name) && !ctx.GlobalIsSet(utils.NetworkIdFlag.Name) {
+	if ctx.String(utils.SyncModeFlag.Name) != "light" && !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either
-		if !ctx.GlobalIsSet(utils.TestnetFlag.Name) && !ctx.GlobalIsSet(utils.DeveloperFlag.Name) {
-			log.Info("Bumping default cache on mainnet", "provided", ctx.GlobalInt(utils.CacheFlag.Name), "updated", 4096)
-			ctx.GlobalSet(utils.CacheFlag.Name, strconv.Itoa(4096))
+		if !ctx.IsSet(utils.TestnetFlag.Name) && !ctx.IsSet(utils.DeveloperFlag.Name) {
+			log.Info("Bumping default cache on mainnet", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 4096)
+			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))
 		}
 	}
 	// If we're running a light client on any network, drop the cache to some meaningfully low amount
-	if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" && !ctx.GlobalIsSet(utils.CacheFlag.Name) {
-		log.Info("Dropping default light client cache", "provided", ctx.GlobalInt(utils.CacheFlag.Name), "updated", 128)
-		ctx.GlobalSet(utils.CacheFlag.Name, strconv.Itoa(128))
+	if ctx.String(utils.SyncModeFlag.Name) == "light" && !ctx.IsSet(utils.CacheFlag.Name) {
+		log.Info("Dropping default light client cache", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 128)
+		ctx.Set(utils.CacheFlag.Name, strconv.Itoa(128))
 	}
 
 	// Start metrics export if enabled
@@ -325,7 +329,7 @@ func prepare(ctx *cli.Context) {
 // It creates a default node based on the command line arguments and runs it in
 // blocking mode, waiting for it to be shut down.
 func geth(ctx *cli.Context) error {
-	if args := ctx.Args(); len(args) > 0 {
+	if args := ctx.Args().Slice(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
 
@@ -396,7 +400,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 
 	// Spawn a standalone goroutine for status synchronization monitoring,
 	// close the node when synchronization is complete if user required.
-	if ctx.GlobalBool(utils.ExitWhenSyncedFlag.Name) {
+	if ctx.Bool(utils.ExitWhenSyncedFlag.Name) {
 		go func() {
 			sub := stack.EventMux().Subscribe(downloader.DoneEvent{})
 			defer sub.Unsubscribe()
@@ -419,9 +423,9 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 	}
 
 	// Start auxiliary services if enabled
-	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+	if ctx.Bool(utils.MiningEnabledFlag.Name) || ctx.Bool(utils.DeveloperFlag.Name) {
 		// Mining only makes sense if a full Ethereum node is running
-		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
+		if ctx.String(utils.SyncModeFlag.Name) == "light" {
 			utils.Fatalf("Light clients do not support mining")
 		}
 		ethBackend, ok := backend.(*eth.EthAPIBackend)
@@ -429,10 +433,10 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 			utils.Fatalf("Ethereum service not running")
 		}
 		// Set the gas price to the limits from the CLI and start mining
-		gasprice := utils.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
+		gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
 		ethBackend.TxPool().SetGasPrice(gasprice)
 		// start mining
-		threads := ctx.GlobalInt(utils.MinerThreadsFlag.Name)
+		threads := ctx.Int(utils.MinerThreadsFlag.Name)
 		if err := ethBackend.StartMining(threads); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}
@@ -442,7 +446,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 // unlockAccounts unlocks any account specifically requested.
 func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	var unlocks []string
-	inputs := strings.Split(ctx.GlobalString(utils.UnlockedAccountFlag.Name), ",")
+	inputs := strings.Split(ctx.String(utils.UnlockedAccountFlag.Name), ",")
 	for _, input := range inputs {
 		if trimmed := strings.TrimSpace(input); trimmed != "" {
 			unlocks = append(unlocks, trimmed)
