@@ -350,9 +350,18 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		st.state.AddBalance(consensus.IshikariFeeReceiver, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 	} else if rules.IsLondon {
 		// @KCC-TODO: Maybe we will enable EIP-1559 in the future
-		// Move this branch to the top if EIP-1559 is enabled. 
+		// Move this branch to the top if EIP-1559 is enabled.
 		effectiveTip := cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.evm.Context.BaseFee))
-		st.state.AddBalance(consensus.IshikariFeeReceiver, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
+
+		if st.evm.Config.NoBaseFee && st.gasFeeCap.Sign() == 0 && st.gasTipCap.Sign() == 0 {
+			// Skip fee payment when NoBaseFee is set and the fee fields
+			// are 0. This avoids a negative effectiveTip being applied to
+			// the coinbase when simulating calls.
+		} else {
+			fee := new(big.Int).SetUint64(st.gasUsed())
+			fee.Mul(fee, effectiveTip)
+			st.state.AddBalance(consensus.IshikariFeeReceiver, fee)
+		}
 	} else {
 		st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 	}
