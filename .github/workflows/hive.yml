@@ -31,9 +31,13 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE/hive && ./hive --panic --client kcc_latest --sim 'kcc/(smoke|gas-block-limit|gpo)' \
              ${{ inputs.hive_extra_flags }} 
+      - name: "[hive] Pre EIP-1559: New TX Pool"
+        run: |
+            cd $GITHUB_WORKSPACE/hive && ./hive --panic --docker.output --client.checktimelimit 10m --client kcc_latest --sim 'kcc/(new-txpool)' \
+             ${{ inputs.hive_extra_flags }}  
       - name: "[hive] Pre EIP-1559"
         run: |
-            cd $GITHUB_WORKSPACE/hive && ./hive --panic --client.checktimelimit 10m --client kcc_latest --sim 'kcc/(ancient-db|auth-server|test-flag|deploy-contract|pre-1559|new-txpool)' \
+            cd $GITHUB_WORKSPACE/hive && ./hive --panic --client.checktimelimit 10m --client kcc_latest --sim 'kcc/(ancient-db|auth-server|test-flag|deploy-contract|pre-1559)' \
              ${{ inputs.hive_extra_flags }}  
       - name: "[hive] Synchronization  with an old client"
         run: |
