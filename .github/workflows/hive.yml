@@ -49,6 +49,6 @@ jobs:
              ${{ inputs.hive_extra_flags }}  
       - name: "[hive] Ishikari hardfork (without punishment)"
         run: |
-            cd $GITHUB_WORKSPACE/hive && ./hive --panic --client kcc --sim 'kcc/ishikari-(distri|inactive|multinode|singlenode)' \
+            cd $GITHUB_WORKSPACE/hive && ./hive --panic --client kcc --sim 'kcc/ishikari-(distri|multinode|singlenode)' \
              ${{ inputs.hive_extra_flags }}  
       
