@@ -31,7 +31,7 @@ jobs:
       - name: Get the version from the binary
         run: |
           version_tag=$( $GITHUB_WORKSPACE/build/bin/geth version|egrep "^Version" |egrep -o '[0-9].*') && \
-          echo "version_tag=$version_tag" >> $GITHUB_ENV
+          echo "version_tag=v$version_tag" >> $GITHUB_ENV
       - name: Push the tag 
         run: |
           cd $GITHUB_WORKSPACE/kcc && git tag ${{ env.version_tag }} && git push origin ${{ env.version_tag }}
