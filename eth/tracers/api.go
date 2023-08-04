@@ -921,5 +921,53 @@ func APIs(backend Backend) []rpc.API {
 			Namespace: "debug",
 			Service:   NewAPI(backend),
 		},
+		{
+			Namespace: "lightdebug",
+			Service:   NewLightAPI(backend),
+		},
+	}
+}
+
+// The Light API is a very simple wrapper around "API"
+// Rather than expose a lot of tracing API,
+// LightAPI only exposes the following methods:
+//
+//   - TraceTransaction
+//   - TraceBlockByNumber
+//   - TraceBlockByHash
+//   - TraceCall
+//
+// And also note that all the methods in "lightdebug" module will be exposed
+// in the "debug" module. Which means you will not call "lightdebug_traceTransaction" but
+// "debug_traceTransaction" instead.
+//
+// See node/rpcstack.go:mapNamespace
+type LightAPI struct {
+	internal *API
+}
+
+// TraceTransaction
+func (api *LightAPI) TraceTransaction(ctx context.Context, hash common.Hash, config *TraceConfig) (interface{}, error) {
+	return api.internal.TraceTransaction(ctx, hash, config)
+}
+
+// TraceBlockByNumber
+func (api *LightAPI) TraceBlockByNumber(ctx context.Context, number rpc.BlockNumber, config *TraceConfig) ([]*txTraceResult, error) {
+	return api.internal.TraceBlockByNumber(ctx, number, config)
+}
+
+// TraceBlockByHash
+func (api *LightAPI) TraceBlockByHash(ctx context.Context, hash common.Hash, config *TraceConfig) ([]*txTraceResult, error) {
+	return api.internal.TraceBlockByHash(ctx, hash, config)
+}
+
+// TraceCall
+func (api *LightAPI) TraceCall(ctx context.Context, args ethapi.TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, config *TraceCallConfig) (interface{}, error) {
+	return api.internal.TraceCall(ctx, args, blockNrOrHash, config)
+}
+
+func NewLightAPI(b Backend) *LightAPI {
+	return &LightAPI{
+		internal: NewAPI(b),
 	}
 }
