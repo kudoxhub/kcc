@@ -561,10 +561,10 @@ func RegisterApis(apis []rpc.API, modules []string, srv *rpc.Server) error {
 }
 
 // module to namespace mapping
-// - methods in "lightdebug" module are exposed in "debug" namespace
+// - methods in "litedebug" module are exposed in "debug" namespace
 func mapNamespace(module string) string {
 	switch module {
-	case "lightdebug":
+	case "litedebug":
 		return "debug"
 	default:
 		return module

@@ -922,7 +922,7 @@ func APIs(backend Backend) []rpc.API {
 			Service:   NewAPI(backend),
 		},
 		{
-			Namespace: "lightdebug",
+			Namespace: "litedebug",
 			Service:   NewLightAPI(backend),
 		},
 	}
@@ -937,8 +937,8 @@ func APIs(backend Backend) []rpc.API {
 //   - TraceBlockByHash
 //   - TraceCall
 //
-// And also note that all the methods in "lightdebug" module will be exposed
-// in the "debug" module. Which means you will not call "lightdebug_traceTransaction" but
+// And also note that all the methods in "litedebug" module will be exposed
+// in the "debug" module. Which means you will not call "litedebug_traceTransaction" but
 // "debug_traceTransaction" instead.
 //
 // See node/rpcstack.go:mapNamespace
