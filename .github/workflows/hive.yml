@@ -51,4 +51,7 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE/hive && ./hive --panic --client kcc --sim 'kcc/ishikari-(distri|multinode|singlenode)' \
              ${{ inputs.hive_extra_flags }}  
-      
+      - name: "[hive] litedebug mode"
+        run: |
+            cd $GITHUB_WORKSPACE/hive && ./hive --panic --client kcc --sim 'kcc/litedebug' \
+             ${{ inputs.hive_extra_flags }}        
