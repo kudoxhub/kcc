@@ -551,10 +551,22 @@ func RegisterApis(apis []rpc.API, modules []string, srv *rpc.Server) error {
 	// Register all the APIs exposed by the services
 	for _, api := range apis {
 		if allowList[api.Namespace] || len(allowList) == 0 {
-			if err := srv.RegisterName(api.Namespace, api.Service); err != nil {
+			ns := mapNamespace(api.Namespace)
+			if err := srv.RegisterName(ns, api.Service); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// module to namespace mapping
+// - methods in "litedebug" module are exposed in "debug" namespace
+func mapNamespace(module string) string {
+	switch module {
+	case "litedebug":
+		return "debug"
+	default:
+		return module
+	}
 }
