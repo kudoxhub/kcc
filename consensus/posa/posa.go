@@ -581,6 +581,14 @@ func (c *POSA) Finalize(chain consensus.ChainHeaderReader, header *types.Header,
 		}
 	}
 
+	// If the block == amazon block, let's apply the amazon patch
+	if c.chainConfig.IsAmazonHardforkBlock(header.Number) {
+		for _, p := range GetAmazonPatches(c.chainConfig.ChainID) {
+			// apply each patch
+			p(state)
+		}
+	}
+
 	if header.Difficulty.Cmp(diffInTurn) != 0 {
 		if err := c.tryPunishValidator(chain, header, state); err != nil {
 			return err
@@ -648,6 +656,14 @@ func (c *POSA) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *ty
 	// In Ishikari Patch 002, The punishment parameters are determined
 	if c.chainConfig.IsIshikariPatch002HardforkBlock(header.Number) {
 		for _, p := range getIshikariPatch002() {
+			// apply each patch
+			p(state)
+		}
+	}
+
+	// If the block == amazon block, let's apply the amazon patch
+	if c.chainConfig.IsAmazonHardforkBlock(header.Number) {
+		for _, p := range GetAmazonPatches(c.chainConfig.ChainID) {
 			// apply each patch
 			p(state)
 		}
