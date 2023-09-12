@@ -18,6 +18,11 @@ func (state *mockState) SetCode(addr common.Address, code []byte) {
 	if !state.expected[addr] {
 		state.t.Fatalf("unexpected SetCode(%v)", addr)
 	}
+
+	// validate that the code is not empty
+	if len(code) == 0 {
+		state.t.Fatalf("unexpected empty code for %v", addr)
+	}
 }
 
 func TestAmazonPatchTestnet(t *testing.T) {
