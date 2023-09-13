@@ -9,7 +9,7 @@ import (
 //
 // The Amazon Hardfork includes the following upgrades:
 //   - KCC Staking Contract: Add a new method to migrate GoDao's KCS
-//   - KCC Peg Token: Add a method to migrate stuck tokens
+//   - KCC Peg Token: Add a method to migrate tokens
 //   - Consensus: Reduce reorged blocks
 //
 
