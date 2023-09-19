@@ -156,16 +156,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, new(EthashConfig), nil, nil}
+	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, new(EthashConfig), nil, nil}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
+	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, new(EthashConfig), nil, nil}
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, new(EthashConfig), nil, nil}
 	TestRules       = TestChainConfig.Rules(new(big.Int), false)
 )
 
@@ -283,6 +283,9 @@ type ChainConfig struct {
 	ShanghaiBlock *big.Int `json:"shanghaiBlock,omitempty"` // Shanghai switch block (nil = no fork, 0 = already on shanghai)
 	CancunBlock   *big.Int `json:"cancunBlock,omitempty"`   // Cancun switch block (nil = no fork, 0 = already on cancun)
 
+	// @KCC Amazon Hardfork block
+	AmazonBlock *big.Int `json:"amazonBlock,omitempty"` // Amazon switch block (nil = no fork, x = already on amazon)
+
 	// @KCC-TODO: We will not enable TTD
 	// The hardfork should not reflect on the forkid.
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
@@ -386,7 +389,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, cve_2021_39137Block:%v, Ishikari: %v, IshikariPatch: %v, YOLO v3: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, cve_2021_39137Block:%v, Ishikari: %v, IshikariPatch: %v, Amazon: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -403,7 +406,7 @@ func (c *ChainConfig) String() string {
 		c.CVE_2021_39137Block,
 		c.IshikariBlock,
 		c.IshikariPatch001Block,
-		c.YoloV3Block,
+		c.AmazonBlock,
 		engine,
 	)
 }
@@ -532,6 +535,14 @@ func (c *ChainConfig) IsIshikariPatch002HardforkBlock(num *big.Int) bool {
 	return num.Cmp(c.IshikariPatch002Block) == 0
 }
 
+// only return true is the block number is exactly the Amazon Switch Block
+func (c *ChainConfig) IsAmazonHardforkBlock(num *big.Int) bool {
+	if num == nil || c.AmazonBlock == nil {
+		return false
+	}
+	return num.Cmp(c.AmazonBlock) == 0
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *ConfigCompatError {
@@ -574,6 +585,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "ishikariBlock", block: c.IshikariBlock},
 		{name: "ishikariPatch001Block", block: c.IshikariPatch001Block},
 		{name: "ishikariPatch002Block", block: c.IshikariPatch002Block},
+		{name: "amazonBlock", block: c.AmazonBlock}, // amazon block should come after all Ishikari blocks
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -657,6 +669,10 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 
 	if isForkIncompatible(c.IshikariPatch002Block, newcfg.IshikariPatch002Block, head) {
 		return newCompatError("IshikariPatch002 fork block", c.IshikariPatch002Block, newcfg.IshikariPatch002Block)
+	}
+
+	if isForkIncompatible(c.AmazonBlock, newcfg.AmazonBlock, head) {
+		return newCompatError("Amazon fork block", c.AmazonBlock, newcfg.AmazonBlock)
 	}
 	return nil
 }

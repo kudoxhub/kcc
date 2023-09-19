@@ -581,6 +581,14 @@ func (c *POSA) Finalize(chain consensus.ChainHeaderReader, header *types.Header,
 		}
 	}
 
+	// If the block == amazon block, let's apply the amazon patch
+	if c.chainConfig.IsAmazonHardforkBlock(header.Number) {
+		for _, p := range GetAmazonPatches(c.chainConfig.ChainID) {
+			// apply each patch
+			p(state)
+		}
+	}
+
 	if header.Difficulty.Cmp(diffInTurn) != 0 {
 		if err := c.tryPunishValidator(chain, header, state); err != nil {
 			return err
@@ -648,6 +656,14 @@ func (c *POSA) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *ty
 	// In Ishikari Patch 002, The punishment parameters are determined
 	if c.chainConfig.IsIshikariPatch002HardforkBlock(header.Number) {
 		for _, p := range getIshikariPatch002() {
+			// apply each patch
+			p(state)
+		}
+	}
+
+	// If the block == amazon block, let's apply the amazon patch
+	if c.chainConfig.IsAmazonHardforkBlock(header.Number) {
+		for _, p := range GetAmazonPatches(c.chainConfig.ChainID) {
 			// apply each patch
 			p(state)
 		}
@@ -1028,10 +1044,16 @@ func (c *POSA) Seal(chain consensus.ChainHeaderReader, block *types.Block, resul
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
 	if header.Difficulty.Cmp(diffNoTurn) == 0 {
 		// It's not our turn explicitly to sign, delay it a bit
-		wiggle := time.Duration(len(snap.Validators)/2+1) * wiggleTime
-		delay += time.Duration(rand.Int63n(int64(wiggle)))
+		wiggleMax := time.Duration(len(snap.Validators)/2+1) * wiggleTime
+		wiggle := time.Duration(rand.Int63n(int64(wiggleMax)))
 
-		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
+		if wiggle < wiggleTime {
+			wiggle = wiggleTime
+		}
+
+		delay += wiggle
+
+		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggleMax))
 	}
 	// Sign all the things!
 	sighash, err := signFn(accounts.Account{Address: val}, accounts.MimetypePOSA, POSARLP(header))
